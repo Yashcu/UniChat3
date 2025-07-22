@@ -27,12 +27,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
+    console.log("Auth state check:", { user: !!user, loading });
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("Session check:", session?.user?.id);
+      console.log("📱 Session check:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+      });
       if (session?.user) {
-        console.log("Attempting to fetch profile for user:", session.user.id);
+        console.log("👤 Fetching profile for:", session.user.id);
         fetchUserProfile(session.user.id);
       } else {
+        console.log("❌ No session found");
         setLoading(false);
       }
     });
@@ -106,17 +112,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) return { error };
 
-      if (data.user) {
-        // Create user profile
-        const { error: profileError } = await supabase.from("users").insert([
-          {
-            id: data.user.id,
-            email,
-            ...userData,
-          },
-        ]);
+      // Only create profile if user is immediately confirmed
+      if (data.user && data.session) {
+        const { error: profileError } = await supabase.from("users").insert({
+          id: data.user.id,
+          email: data.user.email!,
+          role: userData.role || "student",
+          university_id: "00000000-0000-0000-0000-000000000001",
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          student_id: userData.student_id,
+          department: userData.department,
+        });
 
-        if (profileError) return { error: profileError as Error };
+        if (profileError) {
+          console.error("Profile creation error:", profileError);
+          return { error: profileError as Error };
+        }
       }
 
       return { error: null };
