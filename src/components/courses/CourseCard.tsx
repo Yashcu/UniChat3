@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Course } from "@/types";
 import { BookOpen, Users, Calendar, MoreVertical } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface CourseCardProps {
   course: Course & {
@@ -26,10 +26,9 @@ interface CourseCardProps {
     };
   };
   onEdit?: (course: Course) => void;
-  onDelete?: (courseId: string) => void;
 }
 
-export function CourseCard({ course, onEdit, onDelete }: CourseCardProps) {
+export function CourseCard({ course, onEdit }: CourseCardProps) {
   const { user } = useAuth();
   const isTeacher = user?.role === "teacher";
   const isOwnCourse = user?.id === course.teacher_id;
@@ -91,7 +90,6 @@ export function CourseCard({ course, onEdit, onDelete }: CourseCardProps) {
 
       <CardContent className="pt-0">
         <div className="space-y-3">
-          {/* Course Stats */}
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-1">
@@ -109,7 +107,6 @@ export function CourseCard({ course, onEdit, onDelete }: CourseCardProps) {
             </div>
           </div>
 
-          {/* Teacher Info */}
           {course.teacher && !isOwnCourse && (
             <div className="text-sm text-muted-foreground">
               <span className="font-medium">Instructor:</span>{" "}
@@ -117,7 +114,6 @@ export function CourseCard({ course, onEdit, onDelete }: CourseCardProps) {
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex space-x-2 pt-2">
             <Link href={`/courses/${course.id}`} className="flex-1">
               <Button variant="default" size="sm" className="w-full">

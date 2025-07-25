@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,23 +17,15 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
-  console.log("🛡️ ProtectedRoute check:", {
-    hasUser: !!user,
-    loading,
-    userRole: user?.role,
-  });
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        console.log("🔄 No user - redirecting to login");
         router.push(redirectTo);
         return;
       }
-      console.log("✅ User authenticated:", user.email);
 
       if (requiredRole && user.role !== requiredRole) {
-        // Redirect to appropriate dashboard based on user role
         router.push("/dashboard");
         return;
       }

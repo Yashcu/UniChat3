@@ -1,22 +1,22 @@
-'use client'
+"use client";
 
-import { useAuth } from '@/contexts/AuthContext'
-import { Sidebar } from '../../layout/Sidebar'
-import { Header } from '../../layout/Header'
+import { useAuth } from "@/hooks/useAuth";
+import { Sidebar } from "../../layout/Sidebar";
+import { Header } from "@/components/layout/Header";
 
 interface MainLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
-  const { loading } = useAuth()
+  const { loading } = useAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -24,10 +24,8 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
       <div className="md:ml-64">
         <Header />
-        <main className="p-6">
-          {children}
-        </main>
+        <main className="p-6">{children}</main>
       </div>
     </div>
-  )
+  );
 }

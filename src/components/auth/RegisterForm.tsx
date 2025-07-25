@@ -1,95 +1,107 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { useState, ChangeEvent, FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { UserRole } from "@/types";
+
+const validateForm = (formData: { [key: string]: string }) => {
+  if (formData.password !== formData.confirmPassword)
+    return "Passwords do not match.";
+  if (formData.password.length < 6)
+    return "Password must be at least 6 characters long.";
+  if (!formData.firstName.trim() || !formData.lastName.trim())
+    return "First and last name are required.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+    return "Please enter a valid email address.";
+  return null;
+};
 
 export function RegisterForm() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    firstName: '',
-    lastName: '',
-    role: 'student' as const,
-    studentId: '',
-    department: ''
-  })
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+    email: "",
+    password: "",
+    confirmPassword: "",
+    firstName: "",
+    lastName: "",
+    role: UserRole.Student,
+    studentId: "",
+    department: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { signUp } = useAuth()
-  const router = useRouter()
+  const { signUp } = useAuth();
+  const router = useRouter();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
+  const handleInputChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
-    }))
-  }
+      [name]: name === "role" ? (value as UserRole) : value,
+    }));
+  };
 
-  const validateForm = () => {
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      return false
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const validationError = validateForm(formData);
+    if (validationError) {
+      setError(validationError);
+      setLoading(false);
+      return;
     }
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long')
-      return false
-    }
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      setError('First name and last name are required')
-      return false
-    }
-    return true
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    if (!validateForm()) {
-      setLoading(false)
-      return
-    }
+    setError(null);
 
     try {
-      const { error } = await signUp(formData.email, formData.password, {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        role: formData.role,
-        student_id: formData.studentId || null,
-        department: formData.department || null,
-        university_id: '00000000-0000-0000-0000-000000000001' // Default university for now
-      })
+      const { error: signUpError } = await signUp(
+        formData.email,
+        formData.password,
+        {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          role: formData.role,
+          student_id: formData.studentId || null,
+          department: formData.department || null,
+          university_id: "00000000-0000-0000-0000-000000000001",
+        }
+      );
 
-      if (error) {
-        setError(error.message)
+      if (signUpError) {
+        setError(signUpError.message);
       } else {
-        router.push('/dashboard')
+        router.push("/dashboard");
       }
-    } catch (err) {
-      setError('An unexpected error occurred')
+    } catch (_err) {
+      setError("An unexpected error occurred during registration.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
+        <CardTitle className="text-2xl font-bold text-center">
+          Create Account
+        </CardTitle>
         <CardDescription className="text-center">
-          Join your university's digital campus community
+          Join your university&apos;s digital campus community
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -158,15 +170,15 @@ export function RegisterForm() {
               name="role"
               value={formData.role}
               onChange={handleInputChange}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               disabled={loading}
             >
-              <option value="student">Student</option>
-              <option value="teacher">Teacher/Faculty</option>
+              <option value={UserRole.Student}>Student</option>
+              <option value={UserRole.Teacher}>Teacher/Faculty</option>
             </select>
           </div>
 
-          {formData.role === 'student' && (
+          {formData.role === UserRole.Student && (
             <div className="space-y-2">
               <label htmlFor="studentId" className="text-sm font-medium">
                 Student ID (Optional)
@@ -206,7 +218,7 @@ export function RegisterForm() {
               <Input
                 id="password"
                 name="password"
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 placeholder="Create a strong password"
                 value={formData.password}
                 onChange={handleInputChange}
@@ -234,7 +246,7 @@ export function RegisterForm() {
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
+                type={showConfirmPassword ? "text" : "password"}
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
@@ -261,13 +273,13 @@ export function RegisterForm() {
                 Creating Account...
               </>
             ) : (
-              'Create Account'
+              "Create Account"
             )}
           </Button>
 
           <div className="text-center">
             <div className="text-sm text-muted-foreground">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <Link href="/auth/login" className="text-primary hover:underline">
                 Sign in here
               </Link>
@@ -276,5 +288,5 @@ export function RegisterForm() {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

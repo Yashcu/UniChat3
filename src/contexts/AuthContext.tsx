@@ -1,52 +1,103 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { User as SupabaseUser } from "@supabase/supabase-js";
+import {
+  createContext,
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { User, UserRole } from "@/types";
+import { rolePermissions } from "@/lib/permissions";
+
+interface AuthError {
+  message: string;
+  code?: string;
+}
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  error: AuthError | null;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ error: AuthError | null }>;
   signUp: (
     email: string,
     password: string,
     userData: Partial<User>
-  ) => Promise<{ error: Error | null }>;
+  ) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
   hasPermission: (permission: string) => boolean;
+  clearError: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<AuthError | null>(null);
+
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      if (error) {
+        if (error.code === "PGRST116") {
+          setError({
+            message:
+              "User profile not found. Please complete your registration.",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
+      setUser(data as User);
+      setError(null);
+    } catch (error: unknown) {
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code: string }).code)
+          : "unknown";
+
+      setError({ message: "Failed to load user Profile", code });
+    }
+  }, []);
 
   useEffect(() => {
-    // Get initial session
-    console.log("Auth state check:", { user: !!user, loading });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("📱 Session check:", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        email: session?.user?.email,
-      });
-      if (session?.user) {
-        console.log("👤 Fetching profile for:", session.user.id);
-        fetchUserProfile(session.user.id);
-      } else {
-        console.log("❌ No session found");
+    const initializeAuth = async () => {
+      setLoading(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
+      } catch (err: unknown) {
+        setError({ message: "Authentication initialization failed" });
+      } finally {
         setLoading(false);
       }
-    });
+    };
 
-    // Listen for auth changes
+    initializeAuth();
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setLoading(true);
       if (session?.user) {
         await fetchUserProfile(session.user.id);
       } else {
@@ -56,139 +107,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
+  }, [fetchUserProfile]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+    if (error) {
+      const errorMessage =
+        {
+          "Invalid login credentials": "Invalid email or password.",
+          "Email not confirmed": "Please confirm your email before logging in.",
+        }[error.message] || "Sign in failed.";
+      setError({ message: errorMessage, code: error.code });
+      return { error: { message: errorMessage, code: error.code } };
+    }
+    return { error: null };
   }, []);
 
-  async function fetchUserProfile(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", userId)
-        .single();
+  const signUp = useCallback(
+    async (email: string, password: string, userData: Partial<User>) => {
+      setLoading(true);
+      setError(null);
+      const { data, error } = await supabase.auth.signUp({ email, password });
 
       if (error) {
-        if (error.code === "PGRST116") {
-          // No user profile found - this is the likely issue
-          console.error(
-            "User profile not found. User needs to complete registration."
-          );
-          // Optionally redirect to profile completion page
-          return;
-        }
-        throw error;
+        setLoading(false);
+        setError({ message: error.message, code: error.code });
+        return { error: { message: error.message, code: error.code } };
       }
 
-      setUser(data as User);
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      // Log more details for debugging
-      console.error("User ID:", userId);
-      console.error("Full error object:", JSON.stringify(error, null, 2));
-    }
-  }
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      return { error };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  };
-
-  const signUp = async (
-    email: string,
-    password: string,
-    userData: Partial<User>
-  ) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) return { error };
-
-      // Only create profile if user is immediately confirmed
-      if (data.user && data.session) {
-        const { error: profileError } = await supabase.from("users").insert({
-          id: data.user.id,
-          email: data.user.email!,
-          role: userData.role || "student",
-          university_id: "00000000-0000-0000-0000-000000000001",
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          student_id: userData.student_id,
-          department: userData.department,
-        });
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from("users")
+          .insert({ id: data.user.id, email, ...userData });
 
         if (profileError) {
-          console.error("Profile creation error:", profileError);
-          return { error: profileError as Error };
+          setError({ message: profileError.message, code: profileError.code });
+          return {
+            error: { message: profileError.message, code: profileError.code },
+          };
         }
       }
-
+      setLoading(false);
       return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  };
+    },
+    []
+  );
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
-  };
+  }, []);
 
-  const hasRole = (role: UserRole): boolean => {
-    return user?.role === role;
-  };
+  const hasRole = useCallback((role: UserRole) => user?.role === role, [user]);
 
-  const hasPermission = (permission: string): boolean => {
-    if (!user) return false;
+  const hasPermission = useCallback(
+    (permission: string) => {
+      if (!user) return false;
+      const permissions = rolePermissions[user.role] ?? [];
+      return permissions.includes(permission);
+    },
+    [user]
+  );
 
-    // Define role hierarchy
-    const rolePermissions = {
-      administrator: [
-        "read",
-        "write",
-        "delete",
-        "manage_users",
-        "view_analytics",
-        "system_config",
-      ],
-      teacher: [
-        "read",
-        "write",
-        "manage_courses",
-        "grade_assignments",
-        "view_student_progress",
-      ],
-      student: ["read", "submit_assignments", "join_courses", "view_grades"],
-    };
+  const clearError = () => setError(null);
 
-    return rolePermissions[user.role]?.includes(permission) || false;
-  };
-
-  const value = {
-    user,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    hasRole,
-    hasPermission,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      error,
+      signIn,
+      signUp,
+      signOut,
+      hasRole,
+      hasPermission,
+      clearError,
+    }),
+    [user, loading, error, signIn, signUp, signOut, hasRole, hasPermission]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 }

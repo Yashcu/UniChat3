@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
+import { useAuth } from "@/hooks/useAuth";
 import { userService } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,35 +14,31 @@ import { getInitials } from "@/lib/utils";
 
 interface UserSearchProps {
   onSelectUser: (user: User) => void;
-  onClose: () => void;
 }
 
-export function UserSearch({ onSelectUser, onClose }: UserSearchProps) {
+export function UserSearch({ onSelectUser }: UserSearchProps) {
   const { user: currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (currentUser?.university_id && searchTerm.length > 2) {
-      searchUsers();
-    } else {
+  const searchUsers = useCallback(async () => {
+    if (!currentUser?.university_id || searchTerm.length < 3) {
       setUsers([]);
+      return;
     }
-  }, [searchTerm, currentUser]);
-
-  const searchUsers = async () => {
-    if (!currentUser?.university_id) return;
 
     setLoading(true);
     try {
-      const allUsers = await userService.getUsersByUniversity(
+      const { data, error } = await userService.getUsersByUniversity(
         currentUser.university_id
       );
-      const filteredUsers = allUsers
+      if (error) throw new Error(error.message);
+
+      const filteredUsers = (data ?? [])
         .filter(
-          (user) =>
-            user.id !== currentUser.id && // Exclude current user
+          (user: User) =>
+            user.id !== currentUser.id &&
             (user.first_name
               ?.toLowerCase()
               .includes(searchTerm.toLowerCase()) ||
@@ -50,15 +47,24 @@ export function UserSearch({ onSelectUser, onClose }: UserSearchProps) {
                 .includes(searchTerm.toLowerCase()) ||
               user.email.toLowerCase().includes(searchTerm.toLowerCase()))
         )
-        .slice(0, 10); // Limit results
+        .slice(0, 10);
 
       setUsers(filteredUsers);
     } catch (error) {
       console.error("Error searching users:", error);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, searchTerm]);
+
+  useEffect(() => {
+    const debounceSearch = setTimeout(() => {
+      searchUsers();
+    }, 300);
+
+    return () => clearTimeout(debounceSearch);
+  }, [searchTerm, searchUsers]);
 
   return (
     <div className="space-y-4">
@@ -69,7 +75,7 @@ export function UserSearch({ onSelectUser, onClose }: UserSearchProps) {
         />
         <Input
           type="search"
-          placeholder="Search for users by name or email..."
+          placeholder="Search for users..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10"
@@ -89,7 +95,7 @@ export function UserSearch({ onSelectUser, onClose }: UserSearchProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            {users.map((user) => (
+            {users.map((user: User) => (
               <div
                 key={user.id}
                 onClick={() => onSelectUser(user)}
@@ -97,9 +103,11 @@ export function UserSearch({ onSelectUser, onClose }: UserSearchProps) {
               >
                 <Avatar className="w-10 h-10">
                   {user.avatar_url ? (
-                    <img
+                    <Image
                       src={user.avatar_url}
                       alt={`${user.first_name} ${user.last_name}`}
+                      width={40}
+                      height={40}
                       className="w-full h-full object-cover"
                     />
                   ) : (

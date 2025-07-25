@@ -1,15 +1,11 @@
 import { Inter } from "next/font/google";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { MessagingProvider } from "@/contexts/MessagingContext";
+import { defaultMetadata as metadata } from "@/lib/metadata";
+import AppShell from "@/components/layout/AppShell";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata = {
-  title: "UniChat Campus Connect",
-  description:
-    "Academic Communication and Productivity Platform for Universities",
-};
+export { metadata };
 
 export default function RootLayout({
   children,
@@ -17,11 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <AuthProvider>
-          <MessagingProvider>{children}</MessagingProvider>
-        </AuthProvider>
+    <html lang="en" className={inter.className}>
+      <body>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

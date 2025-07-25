@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { UserRole } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -28,29 +29,30 @@ export function getInitials(firstName: string | null, lastName: string | null): 
   return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase()
 }
 
-export function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text
-  return text.substring(0, maxLength) + '...'
+export function getAssignmentStatus(dueDate: string | null, submissionStatus?: string) {
+    if (submissionStatus === 'submitted') {
+        return { text: 'Submitted', color: 'bg-green-100 text-green-800' };
+    }
+    if (!dueDate) {
+        return { text: 'No Due Date', color: 'bg-gray-100 text-gray-800' };
+    }
+    const now = new Date();
+    const due = new Date(dueDate);
+    if (due < now) {
+        return { text: 'Overdue', color: 'bg-red-100 text-red-800' };
+    }
+    return { text: 'Upcoming', color: 'bg-blue-100 text-blue-800' };
 }
 
-export function generateSlug(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-export function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
-}
-
-export function getRoleColor(role: string): string {
-  const roleColors = {
-    student: 'bg-blue-100 text-blue-800',
-    teacher: 'bg-green-100 text-green-800',
-    administrator: 'bg-purple-100 text-purple-800',
+export function getRoleColor(role: UserRole): string {
+  const roleColors: Record<UserRole, string> = {
+    [UserRole.Student]: 'bg-blue-100 text-blue-800',
+    [UserRole.Teacher]: 'bg-green-100 text-green-800',
+    [UserRole.Administrator]: 'bg-purple-100 text-purple-800',
   }
-  return roleColors[role as keyof typeof roleColors] || 'bg-gray-100 text-gray-800'
+  return roleColors[role] || 'bg-gray-100 text-gray-800'
+}
+
+export function calculateTotalUnread(conversations: { unread_count?: number }[]): number {
+  return conversations.reduce((total, conv) => total + (conv.unread_count || 0), 0)
 }
